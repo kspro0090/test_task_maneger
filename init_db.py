@@ -50,7 +50,7 @@ def create_database():
             title VARCHAR(200) NOT NULL,
             description TEXT,
             status VARCHAR(50) NOT NULL DEFAULT 'ToDo',
-            priority VARCHAR(20) NOT NULL DEFAULT 'Medium',
+            priority VARCHAR(20) NOT NULL DEFAULT 'Med',
             project_id INTEGER NOT NULL,
             assignee_id INTEGER,
             created_by INTEGER NOT NULL,
@@ -61,6 +61,114 @@ def create_database():
             FOREIGN KEY (project_id) REFERENCES project (id),
             FOREIGN KEY (assignee_id) REFERENCES user (id),
             FOREIGN KEY (created_by) REFERENCES user (id)
+        )
+    ''')
+    
+    # Create project_member table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS project_member (
+            user_id INTEGER NOT NULL,
+            project_id INTEGER NOT NULL,
+            role_in_project VARCHAR(50) DEFAULT 'MEMBER',
+            joined_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (user_id, project_id),
+            FOREIGN KEY (user_id) REFERENCES user (id),
+            FOREIGN KEY (project_id) REFERENCES project (id)
+        )
+    ''')
+    
+    # Create status_config table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS status_config (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            project_id INTEGER NOT NULL,
+            name VARCHAR(50) NOT NULL,
+            display_name VARCHAR(50) NOT NULL,
+            order_index INTEGER NOT NULL,
+            wip_limit INTEGER,
+            color VARCHAR(7) DEFAULT '#6B7280',
+            FOREIGN KEY (project_id) REFERENCES project (id)
+        )
+    ''')
+    
+    # Create task_attachment table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS task_attachment (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            task_id INTEGER NOT NULL,
+            filename VARCHAR(255) NOT NULL,
+            original_filename VARCHAR(255) NOT NULL,
+            path VARCHAR(500) NOT NULL,
+            size INTEGER NOT NULL,
+            mime_type VARCHAR(100) NOT NULL,
+            uploaded_by INTEGER NOT NULL,
+            uploaded_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (task_id) REFERENCES task (id),
+            FOREIGN KEY (uploaded_by) REFERENCES user (id)
+        )
+    ''')
+    
+    # Create task_comment table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS task_comment (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            task_id INTEGER NOT NULL,
+            body TEXT NOT NULL,
+            created_by INTEGER NOT NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (task_id) REFERENCES task (id),
+            FOREIGN KEY (created_by) REFERENCES user (id)
+        )
+    ''')
+    
+    # Create tag table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS tag (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name VARCHAR(50) UNIQUE NOT NULL,
+            color VARCHAR(7) DEFAULT '#6B7280',
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    
+    # Create task_tags association table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS task_tags (
+            task_id INTEGER NOT NULL,
+            tag_id INTEGER NOT NULL,
+            PRIMARY KEY (task_id, tag_id),
+            FOREIGN KEY (task_id) REFERENCES task (id),
+            FOREIGN KEY (tag_id) REFERENCES tag (id)
+        )
+    ''')
+    
+    # Create notification table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS notification (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            type VARCHAR(50) NOT NULL,
+            title VARCHAR(200) NOT NULL,
+            message TEXT NOT NULL,
+            payload_json TEXT,
+            is_read BOOLEAN NOT NULL DEFAULT 0,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES user (id)
+        )
+    ''')
+    
+    # Create activity_log table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS activity_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            actor_user_id INTEGER NOT NULL,
+            entity_type VARCHAR(50) NOT NULL,
+            entity_id INTEGER NOT NULL,
+            action VARCHAR(50) NOT NULL,
+            description VARCHAR(500) NOT NULL,
+            meta_json TEXT,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (actor_user_id) REFERENCES user (id)
         )
     ''')
     
@@ -127,7 +235,7 @@ def create_demo_data():
     ]
     
     statuses = ['ToDo', 'Doing', 'Review', 'Done']
-    priorities = ['Low', 'Medium', 'High']
+    priorities = ['Low', 'Med', 'High']
     
     for i, title in enumerate(task_titles):
         project_id = random.choice(project_ids)
@@ -139,6 +247,66 @@ def create_demo_data():
             INSERT INTO task (title, description, status, priority, project_id, assignee_id, created_by)
             VALUES (?, ?, ?, ?, ?, ?, ?)
         ''', (title, f'توضیحات مربوط به {title}', status, priority, project_id, assignee_id, admin_id))
+    
+    # Create project members
+    for project_id in project_ids:
+        # Add admin to all projects
+        cursor.execute('''
+            INSERT OR IGNORE INTO project_member (user_id, project_id, role_in_project)
+            VALUES (?, ?, ?)
+        ''', (admin_id, project_id, 'LEAD'))
+        
+        # Add some employees to projects
+        for i in range(3):
+            employee_id = random.choice(employee_ids)
+            cursor.execute('''
+                INSERT OR IGNORE INTO project_member (user_id, project_id, role_in_project)
+                VALUES (?, ?, ?)
+            ''', (employee_id, project_id, 'MEMBER'))
+    
+    # Create status configs for projects
+    for project_id in project_ids:
+        status_configs = [
+            ('ToDo', 'انجام نشده', 1, 5, '#6B7280'),
+            ('Doing', 'در حال انجام', 2, 3, '#3B82F6'),
+            ('Review', 'بررسی', 3, 2, '#F59E0B'),
+            ('Done', 'انجام شده', 4, None, '#10B981')
+        ]
+        
+        for name, display_name, order_index, wip_limit, color in status_configs:
+            cursor.execute('''
+                INSERT INTO status_config (project_id, name, display_name, order_index, wip_limit, color)
+                VALUES (?, ?, ?, ?, ?, ?)
+            ''', (project_id, name, display_name, order_index, wip_limit, color))
+    
+    # Create some tags
+    tags = [
+        ('بگ', '#EF4444'),
+        ('ویژگی', '#10B981'),
+        ('مستندات', '#3B82F6'),
+        ('بهینه‌سازی', '#F59E0B'),
+        ('امنیت', '#8B5CF6')
+    ]
+    
+    for name, color in tags:
+        cursor.execute('''
+            INSERT OR IGNORE INTO tag (name, color)
+            VALUES (?, ?)
+        ''', (name, color))
+    
+    # Add tags to some tasks
+    cursor.execute('SELECT id FROM task LIMIT 5')
+    task_ids = [row[0] for row in cursor.fetchall()]
+    
+    cursor.execute('SELECT id FROM tag LIMIT 3')
+    tag_ids = [row[0] for row in cursor.fetchall()]
+    
+    for task_id in task_ids:
+        for tag_id in random.sample(tag_ids, random.randint(1, 2)):
+            cursor.execute('''
+                INSERT OR IGNORE INTO task_tags (task_id, tag_id)
+                VALUES (?, ?)
+            ''', (task_id, tag_id))
     
     conn.commit()
     conn.close()
