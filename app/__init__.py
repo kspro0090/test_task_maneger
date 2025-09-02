@@ -7,7 +7,9 @@ from dotenv import load_dotenv
 load_dotenv()
 
 def create_app(config_name='default'):
-    app = Flask(__name__)
+    app = Flask(__name__, 
+                template_folder='../templates',
+                static_folder='../static')
     
     # Ensure upload directory exists
     os.makedirs('uploads', exist_ok=True)
@@ -15,7 +17,7 @@ def create_app(config_name='default'):
     # Configuration
     app.config.from_mapping(
         SECRET_KEY=os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production'),
-        SQLALCHEMY_DATABASE_URI=os.environ.get('DATABASE_URL', 'sqlite:///task_manager.db'),
+        SQLALCHEMY_DATABASE_URI=os.environ.get('DATABASE_URL', 'sqlite:////workspace/task_manager.db'),
         SQLALCHEMY_TRACK_MODIFICATIONS=False,
         UPLOAD_FOLDER='uploads',
         MAX_CONTENT_LENGTH=int(os.environ.get('UPLOAD_MAX_MB', 20)) * 1024 * 1024,
