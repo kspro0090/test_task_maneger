@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}سیستم مدیریت کار KSP{% endblock %}</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Vazirmatn Font -->
+    <link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css" rel="stylesheet" type="text/css" />
+    
+    <!-- HTMX -->
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    
+    <!-- Socket.IO -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.4/socket.io.js"></script>
+    
+    <!-- Alpine.js for lightweight interactions -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    
+    <!-- Custom CSS -->
+    <style>
+        body {
+            font-family: 'Vazirmatn', sans-serif;
+        }
+        
+        /* RTL specific styles */
+        .rtl-flip {
+            transform: scaleX(-1);
+        }
+        
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: #c1c1c1;
+            border-radius: 4px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: #a8a8a8;
+        }
+        
+        /* Loading spinner */
+        .htmx-indicator {
+            opacity: 0;
+            transition: opacity 200ms ease-in;
+        }
+        
+        .htmx-request .htmx-indicator {
+            opacity: 1;
+        }
+        
+        .htmx-request.htmx-indicator {
+            opacity: 1;
+        }
+        
+        /* Notification styles */
+        .notification {
+            animation: slideInRight 0.3s ease-out;
+        }
+        
+        @keyframes slideInRight {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+        
+        /* Task card hover effects */
+        .task-card {
+            transition: all 0.2s ease;
+        }
+        
+        .task-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+        
+        /* Drag and drop styles */
+        .sortable-ghost {
+            opacity: 0.5;
+        }
+        
+        .sortable-chosen {
+            transform: rotate(5deg);
+        }
+        
+        .sortable-drag {
+            transform: rotate(5deg);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+        }
+        
+        /* Priority colors */
+        .priority-high {
+            border-right: 4px solid #ef4444;
+        }
+        
+        .priority-med {
+            border-right: 4px solid #f59e0b;
+        }
+        
+        .priority-low {
+            border-right: 4px solid #10b981;
+        }
+        
+        /* Status colors */
+        .status-todo {
+            background-color: #f3f4f6;
+        }
+        
+        .status-doing {
+            background-color: #dbeafe;
+        }
+        
+        .status-review {
+            background-color: #fef3c7;
+        }
+        
+        .status-done {
+            background-color: #d1fae5;
+        }
+    </style>
+    
+    <!-- Tailwind RTL Configuration -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        'vazir': ['Vazirmatn', 'sans-serif']
+                    },
+                    colors: {
+                        'primary': {
+                            50: '#f0fdf4',
+                            100: '#dcfce7',
+                            200: '#bbf7d0',
+                            300: '#86efac',
+                            400: '#4ade80',
+                            500: '#22c55e',
+                            600: '#16a34a',
+                            700: '#15803d',
+                            800: '#166534',
+                            900: '#14532d'
+                        },
+                        'danger': {
+                            50: '#fef2f2',
+                            100: '#fee2e2',
+                            200: '#fecaca',
+                            300: '#fca5a5',
+                            400: '#f87171',
+                            500: '#ef4444',
+                            600: '#dc2626',
+                            700: '#b91c1c',
+                            800: '#991b1b',
+                            900: '#7f1d1d'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    
+    {% block extra_head %}{% endblock %}
+</head>
+<body class="bg-gray-50 font-vazir">
+    <!-- Navigation -->
+    {% if current_user.is_authenticated %}
+    <nav class="bg-white shadow-sm border-b border-gray-200" x-data="{ mobileMenuOpen: false, notificationsOpen: false }">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <!-- Logo and main navigation -->
+                <div class="flex">
+                    <div class="flex-shrink-0 flex items-center">
+                        <a href="{{ url_for('main.dashboard') }}" class="text-xl font-bold text-gray-900">
+                            سیستم مدیریت کار KSP
+                        </a>
+                    </div>
+                    
+                    <!-- Desktop navigation -->
+                    <div class="hidden md:mr-6 md:flex md:space-x-reverse md:space-x-8">
+                        <a href="{{ url_for('main.dashboard') }}" 
+                           class="{{ 'border-primary-500 text-gray-900' if request.endpoint == 'main.dashboard' else 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700' }} inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
+                            داشبورد
+                        </a>
+                        
+                        <a href="{{ url_for('projects.index') }}" 
+                           class="{{ 'border-primary-500 text-gray-900' if request.endpoint and request.endpoint.startswith('projects.') else 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700' }} inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
+                            پروژه‌ها
+                        </a>
+                        
+                        <a href="{{ url_for('tasks.index') }}" 
+                           class="{{ 'border-primary-500 text-gray-900' if request.endpoint and request.endpoint.startswith('tasks.') else 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700' }} inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
+                            کارها
+                        </a>
+                        
+                        {% if current_user.is_admin() %}
+                        <a href="{{ url_for('admin.users') }}" 
+                           class="{{ 'border-primary-500 text-gray-900' if request.endpoint and request.endpoint.startswith('admin.') else 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700' }} inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
+                            مدیریت
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <!-- Right side navigation -->
+                <div class="flex items-center">
+                    <!-- Search -->
+                    <div class="hidden md:block ml-4">
+                        <form action="{{ url_for('main.search') }}" method="GET" class="relative">
+                            <input type="text" name="q" placeholder="جستجو..." 
+                                   class="w-64 pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-primary-500 focus:border-primary-500 text-sm">
+                            <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                                <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                                </svg>
+                            </div>
+                        </form>
+                    </div>
+                    
+                    <!-- Notifications -->
+                    <div class="ml-4 relative" x-data="{ open: false }">
+                        <button @click="open = !open" 
+                                class="p-2 text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 rounded-full relative">
+                            <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-5 5v-5zM11 3.055A9.001 9.001 0 1020.945 13H11V3.055z"></path>
+                            </svg>
+                            <span id="notification-badge" class="absolute -top-1 -right-1 h-5 w-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center hidden">
+                                0
+                            </span>
+                        </button>
+                        
+                        <!-- Notifications dropdown -->
+                        <div x-show="open" @click.away="open = false" 
+                             x-transition:enter="transition ease-out duration-100"
+                             x-transition:enter-start="transform opacity-0 scale-95"
+                             x-transition:enter-end="transform opacity-100 scale-100"
+                             x-transition:leave="transition ease-in duration-75"
+                             x-transition:leave-start="transform opacity-100 scale-100"
+                             x-transition:leave-end="transform opacity-0 scale-95"
+                             class="absolute left-0 mt-2 w-80 bg-white rounded-md shadow-lg ring-1 ring-black ring-opacity-5 z-50">
+                            <div id="notifications-dropdown" class="py-1">
+                                <!-- Notifications will be loaded here -->
+                                <div class="px-4 py-2 text-sm text-gray-500 text-center">
+                                    در حال بارگذاری...
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- User menu -->
+                    <div class="ml-4 relative" x-data="{ open: false }">
+                        <button @click="open = !open" 
+                                class="flex items-center text-sm rounded-full focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2">
+                            <div class="h-8 w-8 bg-primary-500 rounded-full flex items-center justify-center text-white font-medium">
+                                {{ current_user.full_name[0] }}
+                            </div>
+                            <span class="mr-2 text-gray-700 font-medium">{{ current_user.full_name }}</span>
+                            <svg class="mr-1 h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                            </svg>
+                        </button>
+                        
+                        <!-- User dropdown -->
+                        <div x-show="open" @click.away="open = false" 
+                             x-transition:enter="transition ease-out duration-100"
+                             x-transition:enter-start="transform opacity-0 scale-95"
+                             x-transition:enter-end="transform opacity-100 scale-100"
+                             x-transition:leave="transition ease-in duration-75"
+                             x-transition:leave-start="transform opacity-100 scale-100"
+                             x-transition:leave-end="transform opacity-0 scale-95"
+                             class="absolute left-0 mt-2 w-48 bg-white rounded-md shadow-lg ring-1 ring-black ring-opacity-5 z-50">
+                            <div class="py-1">
+                                <a href="{{ url_for('auth.profile') }}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                                    پروفایل
+                                </a>
+                                <a href="{{ url_for('notifications.index') }}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                                    اعلان‌ها
+                                </a>
+                                <div class="border-t border-gray-100"></div>
+                                <a href="{{ url_for('auth.logout') }}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                                    خروج
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Mobile menu button -->
+                    <div class="md:hidden ml-4">
+                        <button @click="mobileMenuOpen = !mobileMenuOpen" 
+                                class="p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2">
+                            <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path x-show="!mobileMenuOpen" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+                                <path x-show="mobileMenuOpen" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Mobile menu -->
+        <div x-show="mobileMenuOpen" class="md:hidden">
+            <div class="pt-2 pb-3 space-y-1">
+                <a href="{{ url_for('main.dashboard') }}" 
+                   class="{{ 'bg-primary-50 border-primary-500 text-primary-700' if request.endpoint == 'main.dashboard' else 'border-transparent text-gray-500 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-700' }} block pr-4 py-2 border-r-4 text-base font-medium">
+                    داشبورد
+                </a>
+                <a href="{{ url_for('projects.index') }}" 
+                   class="{{ 'bg-primary-50 border-primary-500 text-primary-700' if request.endpoint and request.endpoint.startswith('projects.') else 'border-transparent text-gray-500 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-700' }} block pr-4 py-2 border-r-4 text-base font-medium">
+                    پروژه‌ها
+                </a>
+                <a href="{{ url_for('tasks.index') }}" 
+                   class="{{ 'bg-primary-50 border-primary-500 text-primary-700' if request.endpoint and request.endpoint.startswith('tasks.') else 'border-transparent text-gray-500 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-700' }} block pr-4 py-2 border-r-4 text-base font-medium">
+                    کارها
+                </a>
+                {% if current_user.is_admin() %}
+                <a href="{{ url_for('admin.users') }}" 
+                   class="{{ 'bg-primary-50 border-primary-500 text-primary-700' if request.endpoint and request.endpoint.startswith('admin.') else 'border-transparent text-gray-500 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-700' }} block pr-4 py-2 border-r-4 text-base font-medium">
+                    مدیریت
+                </a>
+                {% endif %}
+            </div>
+        </div>
+    </nav>
+    {% endif %}
+    
+    <!-- Flash messages -->
+    <div id="flash-messages" class="fixed top-20 left-4 z-50 space-y-2">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                <div class="notification max-w-sm bg-white border border-gray-200 rounded-lg shadow-lg p-4 flex items-center" 
+                     x-data="{ show: true }" x-show="show" x-init="setTimeout(() => show = false, 5000)">
+                    {% if category == 'error' %}
+                    <div class="flex-shrink-0">
+                        <svg class="h-5 w-5 text-red-400" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path>
+                        </svg>
+                    </div>
+                    {% elif category == 'success' %}
+                    <div class="flex-shrink-0">
+                        <svg class="h-5 w-5 text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                        </svg>
+                    </div>
+                    {% elif category == 'warning' %}
+                    <div class="flex-shrink-0">
+                        <svg class="h-5 w-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path>
+                        </svg>
+                    </div>
+                    {% else %}
+                    <div class="flex-shrink-0">
+                        <svg class="h-5 w-5 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path>
+                        </svg>
+                    </div>
+                    {% endif %}
+                    <div class="mr-3">
+                        <p class="text-sm font-medium text-gray-900">{{ message }}</p>
+                    </div>
+                    <div class="mr-auto pl-3">
+                        <button @click="show = false" class="inline-flex text-gray-400 hover:text-gray-600 focus:outline-none">
+                            <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+    </div>
+    
+    <!-- Main content -->
+    <main class="{% if current_user.is_authenticated %}pt-0{% else %}pt-16{% endif %}">
+        {% block content %}{% endblock %}
+    </main>
+    
+    <!-- Loading indicator -->
+    <div id="loading-indicator" class="htmx-indicator fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50">
+        <div class="bg-white rounded-lg shadow-lg p-4 flex items-center">
+            <svg class="animate-spin h-5 w-5 text-primary-500 ml-3" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <span class="text-gray-700">در حال بارگذاری...</span>
+        </div>
+    </div>
+    
+    <!-- Socket.IO and real-time functionality -->
+    {% if current_user.is_authenticated %}
+    <script>
+        // Initialize Socket.IO
+        const socket = io();
+        
+        // Connection events
+        socket.on('connect', function() {
+            console.log('Connected to server');
+        });
+        
+        socket.on('disconnect', function() {
+            console.log('Disconnected from server');
+        });
+        
+        // Notification events
+        socket.on('new_notification', function(data) {
+            updateNotificationBadge();
+            showNotificationToast(data.title, data.message);
+        });
+        
+        // Task update events
+        socket.on('task_updated', function(data) {
+            // Refresh task lists if on relevant pages
+            if (window.location.pathname.includes('/tasks') || window.location.pathname.includes('/projects')) {
+                htmx.trigger(document.body, 'refresh-tasks');
+            }
+        });
+        
+        // Update notification badge
+        function updateNotificationBadge() {
+            fetch('/notifications/unread-count')
+                .then(response => response.json())
+                .then(data => {
+                    const badge = document.getElementById('notification-badge');
+                    if (data.count > 0) {
+                        badge.textContent = data.count;
+                        badge.classList.remove('hidden');
+                    } else {
+                        badge.classList.add('hidden');
+                    }
+                });
+        }
+        
+        // Show notification toast
+        function showNotificationToast(title, message) {
+            const toast = document.createElement('div');
+            toast.className = 'notification max-w-sm bg-white border border-gray-200 rounded-lg shadow-lg p-4 flex items-center';
+            toast.innerHTML = `
+                <div class="flex-shrink-0">
+                    <svg class="h-5 w-5 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path>
+                    </svg>
+                </div>
+                <div class="mr-3">
+                    <p class="text-sm font-medium text-gray-900">${title}</p>
+                    <p class="text-sm text-gray-500">${message}</p>
+                </div>
+                <div class="mr-auto pl-3">
+                    <button onclick="this.parentElement.parentElement.remove()" class="inline-flex text-gray-400 hover:text-gray-600 focus:outline-none">
+                        <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path>
+                        </svg>
+                    </button>
+                </div>
+            `;
+            
+            document.getElementById('flash-messages').appendChild(toast);
+            
+            // Auto remove after 5 seconds
+            setTimeout(() => {
+                if (toast.parentElement) {
+                    toast.remove();
+                }
+            }, 5000);
+        }
+        
+        // Load notification badge on page load
+        updateNotificationBadge();
+        
+        // Load notifications dropdown when opened
+        document.addEventListener('click', function(e) {
+            if (e.target.closest('[data-notifications-trigger]')) {
+                fetch('/notifications/recent')
+                    .then(response => response.text())
+                    .then(html => {
+                        document.getElementById('notifications-dropdown').innerHTML = html;
+                    });
+            }
+        });
+    </script>
+    {% endif %}
+    
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

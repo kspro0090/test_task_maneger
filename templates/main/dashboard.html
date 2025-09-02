@@ -1,0 +1,309 @@
+{% extends "base.html" %}
+
+{% block title %}داشبورد - سیستم مدیریت کار KSP{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <!-- Welcome section -->
+    <div class="mb-8">
+        <h1 class="text-3xl font-bold text-gray-900 mb-2">
+            خوش آمدید، {{ current_user.full_name }}!
+        </h1>
+        <p class="text-gray-600">
+            {% if current_user.is_admin() %}
+                شما با دسترسی مدیر وارد شده‌اید.
+            {% else %}
+                امروز چه کارهایی در برنامه دارید؟
+            {% endif %}
+        </p>
+    </div>
+    
+    <!-- Statistics cards -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <!-- Total tasks -->
+        <div class="bg-white overflow-hidden shadow-sm rounded-lg border border-gray-200">
+            <div class="p-6">
+                <div class="flex items-center">
+                    <div class="flex-shrink-0">
+                        <div class="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
+                            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="mr-4 flex-1">
+                        <div class="text-sm font-medium text-gray-500">کل کارها</div>
+                        <div class="text-2xl font-bold text-gray-900">{{ stats.total_tasks }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Completed this week -->
+        <div class="bg-white overflow-hidden shadow-sm rounded-lg border border-gray-200">
+            <div class="p-6">
+                <div class="flex items-center">
+                    <div class="flex-shrink-0">
+                        <div class="w-8 h-8 bg-green-500 rounded-lg flex items-center justify-center">
+                            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="mr-4 flex-1">
+                        <div class="text-sm font-medium text-gray-500">انجام شده این هفته</div>
+                        <div class="text-2xl font-bold text-gray-900">{{ stats.completed_last_week }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Completed this month -->
+        <div class="bg-white overflow-hidden shadow-sm rounded-lg border border-gray-200">
+            <div class="p-6">
+                <div class="flex items-center">
+                    <div class="flex-shrink-0">
+                        <div class="w-8 h-8 bg-purple-500 rounded-lg flex items-center justify-center">
+                            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="mr-4 flex-1">
+                        <div class="text-sm font-medium text-gray-500">انجام شده این ماه</div>
+                        <div class="text-2xl font-bold text-gray-900">{{ stats.completed_last_month }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Overdue tasks -->
+        <div class="bg-white overflow-hidden shadow-sm rounded-lg border border-gray-200">
+            <div class="p-6">
+                <div class="flex items-center">
+                    <div class="flex-shrink-0">
+                        <div class="w-8 h-8 bg-red-500 rounded-lg flex items-center justify-center">
+                            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="mr-4 flex-1">
+                        <div class="text-sm font-medium text-gray-500">عقب‌افتاده</div>
+                        <div class="text-2xl font-bold text-gray-900">{{ stats.overdue_tasks }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Status distribution chart -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+        <!-- Status chart -->
+        <div class="bg-white shadow-sm rounded-lg border border-gray-200 p-6">
+            <h3 class="text-lg font-medium text-gray-900 mb-4">توزیع کارها بر اساس وضعیت</h3>
+            <div class="space-y-3">
+                {% set status_labels = {'ToDo': 'انجام نشده', 'Doing': 'در حال انجام', 'Review': 'بررسی', 'Done': 'انجام شده'} %}
+                {% set status_colors = {'ToDo': 'bg-gray-500', 'Doing': 'bg-blue-500', 'Review': 'bg-yellow-500', 'Done': 'bg-green-500'} %}
+                
+                {% for status, count in stats.status_counts.items() %}
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center">
+                        <div class="w-3 h-3 {{ status_colors.get(status, 'bg-gray-500') }} rounded-full ml-3"></div>
+                        <span class="text-sm font-medium text-gray-700">{{ status_labels.get(status, status) }}</span>
+                    </div>
+                    <span class="text-sm font-bold text-gray-900">{{ count }}</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        
+        <!-- Quick actions -->
+        <div class="bg-white shadow-sm rounded-lg border border-gray-200 p-6">
+            <h3 class="text-lg font-medium text-gray-900 mb-4">عملیات سریع</h3>
+            <div class="space-y-3">
+                <a href="{{ url_for('projects.index') }}" 
+                   class="flex items-center p-3 text-sm font-medium text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
+                    <svg class="w-5 h-5 text-gray-400 ml-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
+                    </svg>
+                    مشاهده پروژه‌ها
+                </a>
+                
+                <a href="{{ url_for('tasks.index') }}" 
+                   class="flex items-center p-3 text-sm font-medium text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
+                    <svg class="w-5 h-5 text-gray-400 ml-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path>
+                    </svg>
+                    مشاهده کارها
+                </a>
+                
+                {% if current_user.is_admin() %}
+                <a href="{{ url_for('projects.create') }}" 
+                   class="flex items-center p-3 text-sm font-medium text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
+                    <svg class="w-5 h-5 text-gray-400 ml-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                    </svg>
+                    ایجاد پروژه جدید
+                </a>
+                
+                <a href="{{ url_for('admin.users') }}" 
+                   class="flex items-center p-3 text-sm font-medium text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
+                    <svg class="w-5 h-5 text-gray-400 ml-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z"></path>
+                    </svg>
+                    مدیریت کاربران
+                </a>
+                {% endif %}
+                
+                <a href="{{ url_for('main.export_tasks') }}" 
+                   class="flex items-center p-3 text-sm font-medium text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
+                    <svg class="w-5 h-5 text-gray-400 ml-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                    </svg>
+                    دانلود گزارش Excel
+                </a>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Recent activities and tasks -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <!-- My tasks -->
+        <div class="bg-white shadow-sm rounded-lg border border-gray-200">
+            <div class="px-6 py-4 border-b border-gray-200">
+                <h3 class="text-lg font-medium text-gray-900">کارهای من</h3>
+            </div>
+            <div class="p-6">
+                {% if my_tasks %}
+                <div class="space-y-4">
+                    {% for task in my_tasks %}
+                    <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                        <div class="flex-1">
+                            <a href="{{ url_for('tasks.detail', task_id=task.id) }}" 
+                               class="text-sm font-medium text-gray-900 hover:text-primary-600">
+                                {{ task.title }}
+                            </a>
+                            <p class="text-xs text-gray-500 mt-1">
+                                {{ task.project.name }}
+                                {% if task.due_date %}
+                                    • سررسید: {{ task.due_date.strftime('%Y/%m/%d') }}
+                                {% endif %}
+                            </p>
+                        </div>
+                        <div class="flex items-center space-x-2 space-x-reverse">
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                                {% if task.priority == 'High' %}bg-red-100 text-red-800
+                                {% elif task.priority == 'Med' %}bg-yellow-100 text-yellow-800
+                                {% else %}bg-green-100 text-green-800{% endif %}">
+                                {{ task.get_priority_display() }}
+                            </span>
+                            {% if task.is_overdue() %}
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                                عقب‌افتاده
+                            </span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                <div class="mt-4">
+                    <a href="{{ url_for('tasks.index', assignee_id=current_user.id) }}" 
+                       class="text-sm font-medium text-primary-600 hover:text-primary-500">
+                        مشاهده همه کارهای من ←
+                    </a>
+                </div>
+                {% else %}
+                <div class="text-center py-8">
+                    <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path>
+                    </svg>
+                    <h3 class="mt-2 text-sm font-medium text-gray-900">هیچ کاری به شما اختصاص نیافته</h3>
+                    <p class="mt-1 text-sm text-gray-500">کارهای جدید به شما اختصاص داده خواهد شد.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- Overdue tasks -->
+        <div class="bg-white shadow-sm rounded-lg border border-gray-200">
+            <div class="px-6 py-4 border-b border-gray-200">
+                <h3 class="text-lg font-medium text-gray-900">کارهای عقب‌افتاده</h3>
+            </div>
+            <div class="p-6">
+                {% if overdue_tasks %}
+                <div class="space-y-4">
+                    {% for task in overdue_tasks %}
+                    <div class="flex items-center justify-between p-3 bg-red-50 border border-red-200 rounded-lg">
+                        <div class="flex-1">
+                            <a href="{{ url_for('tasks.detail', task_id=task.id) }}" 
+                               class="text-sm font-medium text-gray-900 hover:text-primary-600">
+                                {{ task.title }}
+                            </a>
+                            <p class="text-xs text-gray-500 mt-1">
+                                {{ task.project.name }} • 
+                                {% if task.assignee %}
+                                    مسئول: {{ task.assignee.full_name }} • 
+                                {% endif %}
+                                سررسید: {{ task.due_date.strftime('%Y/%m/%d') }}
+                            </p>
+                        </div>
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                            {{ task.get_priority_display() }}
+                        </span>
+                    </div>
+                    {% endfor %}
+                </div>
+                <div class="mt-4">
+                    <a href="{{ url_for('tasks.index', overdue_only=true) }}" 
+                       class="text-sm font-medium text-primary-600 hover:text-primary-500">
+                        مشاهده همه کارهای عقب‌افتاده ←
+                    </a>
+                </div>
+                {% else %}
+                <div class="text-center py-8">
+                    <svg class="mx-auto h-12 w-12 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    <h3 class="mt-2 text-sm font-medium text-gray-900">هیچ کار عقب‌افتاده‌ای نیست</h3>
+                    <p class="mt-1 text-sm text-gray-500">همه کارها در زمان مقرر انجام شده‌اند.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <!-- Recent notifications -->
+    {% if recent_notifications %}
+    <div class="mt-8">
+        <div class="bg-white shadow-sm rounded-lg border border-gray-200">
+            <div class="px-6 py-4 border-b border-gray-200">
+                <h3 class="text-lg font-medium text-gray-900">اعلان‌های اخیر</h3>
+            </div>
+            <div class="p-6">
+                <div class="space-y-4">
+                    {% for notification in recent_notifications %}
+                    <div class="flex items-start space-x-3 space-x-reverse">
+                        <div class="flex-shrink-0">
+                            <div class="w-2 h-2 bg-blue-500 rounded-full mt-2"></div>
+                        </div>
+                        <div class="flex-1">
+                            <p class="text-sm font-medium text-gray-900">{{ notification.title }}</p>
+                            <p class="text-sm text-gray-500">{{ notification.message }}</p>
+                            <p class="text-xs text-gray-400 mt-1">{{ notification.created_at.strftime('%Y/%m/%d %H:%M') }}</p>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                <div class="mt-4">
+                    <a href="{{ url_for('notifications.index') }}" 
+                       class="text-sm font-medium text-primary-600 hover:text-primary-500">
+                        مشاهده همه اعلان‌ها ←
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
